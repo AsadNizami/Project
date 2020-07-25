@@ -1,0 +1,146 @@
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Date
+from datetime import datetime, timedelta
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine('sqlite:///todo.db?check_same_thread=False')
+Base = declarative_base()  # All model class will inherit from this class
+
+
+# Declaring the model class to store details
+class Task(Base):
+    __tablename__ = 'task'
+    id = Column(Integer, primary_key=True)
+    task = Column(String, default='default_value')
+    deadline = Column(Date, default=datetime.today())
+
+    # Returning the details separated by / to get list of info of every entry
+    def __repr__(self):
+        return str(self.id)+"/"+self.task+"/"+str(self.deadline)
+
+
+# Generating the table in database
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)  # Creating session to make change or view the entries
+session = Session()
+
+
+def weekTasks():
+    today = datetime.today()
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+    for i in range(7):
+        week_tasks = session.query(Task).filter(Task.deadline == today.date()+timedelta(days=i)).all()
+        date_day = (today.date()+timedelta(days=i))  # curr date in Date object
+        curr_day = (today + timedelta(days=i)).weekday()  # curr day in number (eg 0 for Monday )
+        curr_date = (date_day.__str__()[-2]+date_day.__str__()[-1])  # curr date in number in string
+        print()
+        print(f"{days[curr_day]} {curr_date} {today.strftime('%b')}:")
+        if len(week_tasks) == 0:
+            print("Nothing to do!\n")
+        else:
+            i = 1
+            for task in week_tasks:  # week_task stores the data in list of object
+                task_list = str(task).split('/')  # task_list stores the data in list of string
+                print(f"{i}. {task_list[1]}")
+                i += 1
+
+
+
+def add_task():
+    print()
+    print("Enter task")
+    user_task = input()
+    print("Enter deadline")
+    deadln = input()
+    deadln_obj = datetime.strptime(deadln, '%Y-%m-%d')  # deadln is to be converted to datetime object before passing
+    new_row = Task(task=user_task, deadline=deadln_obj)
+    session.add(new_row)
+    session.commit()  # Modifies data as python does not autocommit
+    print("The task has been added!")
+
+
+def all_tasks():
+    print()
+    print("Today:")
+    rows = session.query(Task).all()
+    j = 1
+    if len(rows) != 0:
+        for i in range(len(rows)):
+            date = str(rows[i].deadline)[-2]+str(rows[i].deadline)[-1]
+            month = rows[i].deadline.strftime("%b")
+            tasklist = str(rows[i]).split('/')
+            print(f"{j}. {tasklist[1]}. {date} {month}")
+            j += 1
+
+
+def todayTasks():
+    print()
+    today = datetime.today()
+    today_tasks = session.query(Task).filter(Task.deadline == today.date()).all()
+    print(f"Today {today.day} {today.strftime('%b')}:")
+    if len(today_tasks) == 0:
+        print('Nothing to do!')
+    else:
+        i = 1
+        for task in today_tasks:
+            tasklist = str(task).split('/')
+            print(f"{i}. {tasklist [1]}")
+            i += 1
+            # session.commit()
+
+
+def missedTasks():
+    today = datetime.today()
+    missing_task = session.query(Task).filter(Task.deadline < today.date()).all()
+    if len(missing_task) != 0:
+        j = 1
+        for i in range(len(missing_task)):
+            date = str(missing_task[i].deadline)[-2]+str(missing_task[i].deadline)[-1]
+            month = missing_task[i].deadline.strftime("%b")
+            tasklist = str(missing_task[i]).split('/')
+            print(f"{j}. {tasklist[1]}. {date} {month}")
+            j += 1
+    else:
+        print("Nothing is missed!")
+
+
+def deleteTask():
+    print("Choose the number of the task you want to delete:")
+    delrow = session.query(Task).all()
+    all_tasks()
+    del_num = int(input())
+    session.delete(delrow[del_num-1])  # Deleting the rows using id
+    session.commit()
+    print("The task has been deleted!")
+
+
+def menu():
+    print()
+    print("1) Today's tasks")
+    print("2) Week's tasks")
+    print("3) All tasks")
+    print("4) Missed tasks")
+    print("5) Add task")
+    print("6) Delete task")
+    print("0) Exit")
+    return input("")
+
+
+while True:
+    choice = menu()
+    if choice == "1":
+        todayTasks()
+    elif choice == "2":
+        weekTasks()
+    elif choice == "3":
+        all_tasks()
+    elif choice == "4":
+        missedTasks()
+    elif choice == "5":
+        add_task()
+    elif choice == "6":
+        deleteTask()
+    elif choice == "0":
+        break
